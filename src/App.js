@@ -1,97 +1,87 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 
-import Note from './components/Note'
-import Notification from './components/Notification'
-import Footer from './components/Footer'
-import noteService from './services/notes'
+import { Filter } from './components/Filter'
+import { Notification } from './components/Notification'
+import { PersonForm } from './components/PersonForm'
+import { Persons } from './components/Persons'
+import { Title } from './components/Title'
+import Service from './services'
 
 const App = () => {
-  const [notes, setNotes] = useState([])
-  const [newNote, setNewNote] = useState('')
-  const [showAll, setShowAll] = useState(true)
+  const [persons, setPersons] = useState([])
+  const [newName, setNewName] = useState('')
+  const [newNumber, setNewNumber] = useState('')
+  const [searchName, setSerachName] = useState('')
+  const [message, setMessage] = useState(null)
   const [errorMessage, setErrorMessage] = useState(null)
 
+  const timer = 3000
+
   useEffect(() => {
-    noteService
-      .getAll()
-      .then(initialNotes => {
-        setNotes(initialNotes)
-      })
+    Service.getAll().then(data => setPersons(data))
   }, [])
 
-  const addNote = (event) => {
+
+  const handleSubmit = (event) => {
     event.preventDefault()
-    const noteObject = {
-      content: newNote,
-      date: new Date().toISOString(),
-      important: Math.random() > 0.5,
-      id: notes.length + 1,
+    const persons_names = persons.map(person => person.name)
+    const message = `${newName} is already added to phonebook, replace the old number with a new one?`
+    const newObject = {
+      'name': newName,
+      'number': newNumber,
     }
 
-    noteService
-      .create(noteObject)
-      .then(returnedNote => {
-        setNotes(notes.concat(returnedNote))
-        setNewNote('')
+    if (persons_names.includes(newName) && window.confirm(message)) {
+      const newObjectID = persons[persons_names.indexOf(newName)]['id']
+      Service.update(newObjectID, newObject).then(data =>
+        setPersons(persons.map(person => newObjectID !== person.id ? person : data))
+      ).catch(error => {
+        setErrorMessage(`Information of ${newName} has already been removed from server`)
+        setTimeout(() => { setErrorMessage(null) }, 5000)
       })
+
+      setMessage(`Added ${newName}`)
+      setTimeout(() => { setMessage(null) }, timer)
+    } else {
+      Service.create(newObject).then(data => setPersons(persons.concat(newObject)))
+      setNewName('')
+
+      setMessage(`Added ${newName}`)
+      setTimeout(() => { setMessage(null) }, timer)
+    }
   }
 
-  const handleNoteChange = (event) => {
-    setNewNote(event.target.value)
-  }
-
-  const toggleImportanceOf = id => {
-    const note = notes.find(n => n.id === id)
-    const changedNote = { ...note, important: !note.important }
-  
-    noteService
-      .update(id, changedNote)
-      .then(returnedNote => {
-        setNotes(notes.map(note => note.id !== id ? note : returnedNote))
-      })
-      .catch(error => {
-        setErrorMessage(
-          `Note '${note.content}' was already removed from server`
-        )
-        setTimeout(() => {
-          setErrorMessage(null)
-        }, 5000)
-        setNotes(notes.filter(n => n.id !== id))
-      })
-  }
-
-  const notesToShow = showAll
-    ? notes
-    : notes.filter(note => note.important)
 
   return (
     <div>
-      <h1>Notes</h1>
-      <Notification message={errorMessage} />
+      <Title name={'Phonebook'} />
+      {
+        errorMessage &&
+        <Notification message={message} error={true} />
+      }
+      {
+        message &&
+        <Notification message={message} />
+      }
+      <Notification message={message} />
       <div>
-        <button onClick={() => setShowAll(!showAll)}>
-          show {showAll ? 'important' : 'all' }
-        </button>
-      </div>   
-      <ul>
-        {notesToShow.map(note => 
-          <Note
-            key={note.id}
-            note={note}
-            toggleImportance={() => toggleImportanceOf(note.id)}
-          />
-        )}
-      </ul>
-      <form onSubmit={addNote}>
-        <input
-          value={newNote}
-          onChange={handleNoteChange}
-        />
-        <button type="submit">save</button>
-      </form>
-      <Footer />
+        <Filter searchName={searchName} setSerachName={setSerachName} />
+      </div>
+
+      <div>
+        <Title name={'Add a new'} />
+        <PersonForm handleSubmit={handleSubmit}
+          newName={newName} setNewName={setNewName}
+          newNumber={newNumber} setNewNumber={setNewNumber} />
+      </div>
+
+      <div>
+        <Title name={'Numbers'} />
+        <Persons persons={persons} searchName={searchName} setPersons={setPersons} />
+      </div>
     </div>
   )
+
 }
 
 export default App
